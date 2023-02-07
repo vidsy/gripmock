@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	
+
 	"github.com/go-chi/chi"
 )
 
@@ -29,6 +29,7 @@ func RunStubServer(opt Options) {
 	r.Get("/", listStub)
 	r.Post("/find", handleFindStub)
 	r.Get("/clear", handleClearStub)
+	r.Get("/invocation-history", handleGetInvocationHistory)
 
 	if opt.StubPath != "" {
 		readStubFromFile(opt.StubPath)
@@ -61,7 +62,12 @@ type Input struct {
 
 type Output struct {
 	Data  map[string]interface{} `json:"data"`
-	Error string                 `json:"error"`
+	Error *ErrodPayload          `json:"error,omitempty"`
+}
+
+type ErrodPayload struct {
+	Message string `json:"message"`
+	Code    int    `json:"code"`
 }
 
 func addStub(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +112,7 @@ func validateStub(stub *Stub) error {
 	if stub.Method == "" {
 		return fmt.Errorf("Method name can't be emtpy")
 	}
-	
+
 	// due to golang implementation
 	// method name must capital
 	stub.Method = strings.Title(stub.Method)
@@ -123,10 +129,19 @@ func validateStub(stub *Stub) error {
 	}
 
 	// TODO: validate all input case
-
-	if stub.Output.Error == "" && stub.Output.Data == nil {
+	if stub.Output.Error == nil && stub.Output.Data == nil {
 		return fmt.Errorf("Output can't be empty")
 	}
+
+	if stub.Output.Error != nil {
+		if stub.Output.Error.Code == 0 {
+			return fmt.Errorf("if error is set, the error code cannot be 0")
+		}
+		if stub.Output.Error.Message == "" {
+			return fmt.Errorf("if error is set, the message cannot be empty")
+		}
+	}
+
 	return nil
 }
 
@@ -143,11 +158,13 @@ func handleFindStub(w http.ResponseWriter, r *http.Request) {
 		responseError(err, w)
 		return
 	}
-	
+
 	// due to golang implementation
 	// method name must capital
 	stub.Method = strings.Title(stub.Method)
-	
+
+	registerCallInTheHistoryLog(stub)
+
 	output, err := findStub(stub)
 	if err != nil {
 		log.Println(err)
@@ -162,4 +179,9 @@ func handleFindStub(w http.ResponseWriter, r *http.Request) {
 func handleClearStub(w http.ResponseWriter, r *http.Request) {
 	clearStorage()
 	w.Write([]byte("OK"))
+}
+
+func handleGetInvocationHistory(w http.ResponseWriter, r *http.Request) {
+	history := getCallHistory()
+	json.NewEncoder(w).Encode(history)
 }

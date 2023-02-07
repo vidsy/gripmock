@@ -20,6 +20,7 @@ type stubMapping map[string]map[string][]storage
 type matchFunc func(interface{}, interface{}) bool
 
 var stubStorage = stubMapping{}
+var callHistoryStorage = []findStubPayload{}
 
 type storage struct {
 	Input  Input
@@ -55,6 +56,9 @@ type closeMatch struct {
 func findStub(stub *findStubPayload) (*Output, error) {
 	mx.Lock()
 	defer mx.Unlock()
+
+	callHistoryStorage = append(callHistoryStorage, *stub)
+
 	if _, ok := stubStorage[stub.Service]; !ok {
 		return nil, fmt.Errorf("Can't find stub for Service: %s", stub.Service)
 	}
@@ -266,6 +270,7 @@ func clearStorage() {
 	defer mx.Unlock()
 
 	stubStorage = stubMapping{}
+	callHistoryStorage = callHistoryStorage[:0]
 }
 
 func readStubFromFile(path string) {
@@ -296,4 +301,21 @@ func readStubFromFile(path string) {
 
 		storeStub(stub)
 	}
+}
+
+func getCallHistory() []findStubPayload {
+	mx.Lock()
+	defer mx.Unlock()
+
+	out := make([]findStubPayload, len(callHistoryStorage))
+	copy(out, callHistoryStorage)
+
+	return out
+}
+
+func registerCallInTheHistoryLog(callInfo *findStubPayload) {
+	mx.Lock()
+	defer mx.Unlock()
+
+	callHistoryStorage = append(callHistoryStorage, *callInfo)
 }
