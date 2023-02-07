@@ -57,8 +57,6 @@ func findStub(stub *findStubPayload) (*Output, error) {
 	mx.Lock()
 	defer mx.Unlock()
 
-	callHistoryStorage = append(callHistoryStorage, *stub)
-
 	if _, ok := stubStorage[stub.Service]; !ok {
 		return nil, fmt.Errorf("Can't find stub for Service: %s", stub.Service)
 	}
