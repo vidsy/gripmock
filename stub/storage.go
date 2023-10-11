@@ -158,7 +158,7 @@ func rankMatch(expect string, closeMatch map[string]interface{}) float32 {
 func renderFieldAsString(fields map[string]interface{}) string {
 	template := "{\n"
 	for key, val := range fields {
-		template += fmt.Sprintf("\t%s(type: %T): %v(type: %T)\n", key, key, val, val)
+		template += fmt.Sprintf("\t%s: %v(type: %T)\n", key, val, val)
 	}
 	template += "}"
 	return template
