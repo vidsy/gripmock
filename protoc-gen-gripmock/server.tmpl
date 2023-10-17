@@ -137,37 +137,51 @@ func (s *{{.ServiceName}}) {{.Name}}(srv {{.SvcPackage}}{{.ServiceName}}_{{.Name
 {{ end }}
 
 {{ define "find_stub" }}
+
 type payload struct {
-	Service string      `json:"service"`
-	Method  string      `json:"method"`
-	Data    interface{} `json:"data"`
+	Service string          `json:"service"`
+	Method  string          `json:"method"`
+	Data    json.RawMessage `json:"data"`
 }
 
 type response struct {
-	Data  interface{}    `json:"data"`
-	Error *errorPayload  `json:"error,omitempty"`
+	Data  interface{}   `json:"data"`
+	Error *errorPayload `json:"error,omitempty"`
 }
 
-type errorPayload struct{
-	Message string  `json:"message"`
-	Code int        `json:"code"`
+type errorPayload struct {
+	Message string `json:"message"`
+	Code    int    `json:"code"`
 }
 
 func findStub(service, method string, in, out protoiface.MessageV1) error {
 	url := fmt.Sprintf("http://localhost%s/find", HTTP_PORT)
+
+	jsonpbMarshaller := &jsonpb.Marshaler{
+		OrigName:    true,
+		EnumsAsInts: true,
+	}
+
+	marshalledInput, err := jsonpbMarshaller.MarshalToString(in)
+	if err != nil {
+		return fmt.Errorf("could not marshal input proto request into a json message: %v", err)
+	}
+
 	pyl := payload{
 		Service: service,
 		Method:  method,
-		Data:    in,
+		Data:    json.RawMessage(marshalledInput),
 	}
-	byt, err := json.Marshal(pyl)
+
+	byt, err = json.Marshal(pyl)
 	if err != nil {
 		return err
 	}
+
 	reader := bytes.NewReader(byt)
 	resp, err := http.DefaultClient.Post(url, "application/json", reader)
 	if err != nil {
-		return fmt.Errorf("Error request to stub server %v",err)
+		return fmt.Errorf("Error request to stub server %v", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -178,7 +192,7 @@ func findStub(service, method string, in, out protoiface.MessageV1) error {
 	respRPC := new(response)
 	err = json.NewDecoder(resp.Body).Decode(respRPC)
 	if err != nil {
-		return fmt.Errorf("decoding json response %v",err)
+		return fmt.Errorf("decoding json response %v", err)
 	}
 
 	if respRPC.Error != nil {
@@ -188,4 +202,5 @@ func findStub(service, method string, in, out protoiface.MessageV1) error {
 	data, _ := json.Marshal(respRPC.Data)
 	return jsonpb.Unmarshal(bytes.NewReader(data), out)
 }
+
 {{ end }}
